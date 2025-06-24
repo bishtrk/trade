@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "stock-nse-india": "^1.2.1"
+  }
+}

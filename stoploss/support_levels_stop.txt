@@ -1,0 +1,124 @@
+How it works:
+
+Loads scrip.csv, parses dates, and renames columns for OHLCV.
+
+Recent Swing Low: Finds the last local minimum over the 20 days before your entry (comparing ±2 bars).
+
+EMAs: Calculates 20- and 50-period EMAs on the entry date.
+
+Previous Resistance: Takes the highest High over the prior 20 days (shifted) as flipped support.
+
+Combines all levels below your entry price and picks the nearest one.
+
+Applies a 2% buffer below that support to define your stop-loss.
+
+
+---
+
+Let’s break down each of those support‐identification methods in turn—how they work, what they capture, and their relative strengths:
+
+---
+
+### 1. Recent Swing Lows
+
+**What it is**
+
+* A **swing low** is a point on the chart where the price makes a local minimum (a “valley”) and then reverses upward.
+* Technically, you detect it when the Low of bar *i* is less than the Lows of *n* bars before and after (e.g. 2 bars on each side).
+
+**Why it matters**
+
+* Swing lows mark places where buyers previously stepped in.
+* The **most recent** swing low before your breakout or entry is a natural place that could again act as a floor.
+
+**Strengths**
+
+* Directly tied to actual reversal points.
+* Ignores single‐bar spikes if you require a window on both sides.
+
+**Limitations**
+
+* You must choose your “order” (how many bars to compare)—too small and you catch noise; too large and you miss relevant dips.
+* Only gives you exact points, not a broader zone.
+
+---
+
+### 2. Key Moving Averages (20- or 50-Period EMA)
+
+**What it is**
+
+* An **Exponential Moving Average** smooths price, weighting recent bars more heavily.
+* Common periods (20, 50) are industry standards—many traders watch these levels.
+
+**Why it matters**
+
+* In an uptrend, price often “bounces” off its EMA, making the line a dynamic support.
+* Because EMAs are calculated on every bar, you get a continuous support curve rather than discrete points.
+
+**Strengths**
+
+* **Dynamic**: moves with price, so adapts to changing market levels.
+* **Widely followed**: self-fulfilling to some extent, as many algorithmic systems and traders use these.
+
+**Limitations**
+
+* In choppy or range-bound markets, the EMA can whipsaw your stops.
+* It’s a lagging indicator—by the time price reaches it, you may already be giving back gains.
+
+---
+
+### 3. Previous Resistance (Now Support) – “Polarity Flip”
+
+**What it is**
+
+* **Resistance**: a zone where price previously topped out (multiple highs clustered).
+* After a strong breakout above that zone, watchers expect the same level to act as **support** on a pullback.
+
+**Why it matters**
+
+* Reflects a shift in supply/demand: buyers who missed the initial breakout now view that old ceiling as a buying opportunity.
+* Often tighter than broad moving averages, giving a more precise level.
+
+**Strengths**
+
+* **Psychological**: traders remember those highs and place bids there.
+* Can be very precise when drawn correctly (especially on weekly or daily charts).
+
+**Limitations**
+
+* Requires correctly identifying the right prior resistance zone—subjective if there are multiple peaks.
+* If the breakout was weak or on low volume, the flip may fail and the level won’t hold.
+
+---
+
+## How to Combine Them
+
+1. **Triangulation**: Plot all three (swing low, EMA, flipped resistance) on your chart. If they cluster near the same price, that’s your strongest support.
+
+2. **Priority**:
+
+   * If the **swing low** lies below both EMAs and resistance, it’s often the best “hard stop” anchor.
+   * If the price is well above the swing low but approaching the **20-EMA**, that EMA may serve as initial support.
+   * The **old resistance** can be a “tighter” stop if it sits between the swing low and EMA.
+
+3. **Buffering**: Never place the stop exactly on the line—always give a small buffer (1–2% of price or a few ticks) or use a fraction of ATR to avoid whipsaw.
+
+---
+
+### Visual Example (TCS Case)
+
+* **Swing Low**: Suppose on 2025-06-10 TCS dipped to ₹3,400 before rallying—that’s your swing low.
+* **20-EMA** on 2025-06-20 might sit at ₹3,420.
+* **Prior Resistance**: In early May, TCS peaked around ₹3,430, then broke out above it—now that ₹3,430 level becomes support.
+
+You’d see all three levels within a narrow band:
+
+* Swing Low ≈ ₹3,400
+* 20-EMA ≈ ₹3,420
+* Flipped Resistance ≈ ₹3,430
+
+A sensible stop might be placed just below the **lowest** of these (the swing low) minus a small buffer, or just below the **cluster** of all three if they’re close together.
+
+---
+
+Does that clarify how each method works—and how you’d use them together to set a stop‐loss? Let me know if you’d like a code example or a plotted illustration!

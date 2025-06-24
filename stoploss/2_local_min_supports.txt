@@ -1,0 +1,75 @@
+Yes—using **local minima** to define support is a perfectly valid (and often more nuanced) alternative to simply taking the lowest prior low. Here’s how the two approaches differ and what each “buys” you:
+
+---
+
+## 1. Rolling Min Support (Your Original Method)
+
+1. **Definition**
+
+   * Support = the lowest Low over the last *N* days (e.g. a 10-day rolling min).
+2. **Pros**
+
+   * **Guarantees** you pick the absolute trough in your look-back window.
+   * Easy to compute with `rolling(window).min()`.
+3. **Cons**
+
+   * Often picks a **single extreme outlier** candle—may be driven by a flash‐crash wick rather than true buying interest.
+   * Ignores whether that low was “respected” (i.e. price came back up and traded around it) multiple times.
+
+---
+
+## 2. Local Minima Clustering (The “Multiple Dip” Method)
+
+1. **Definition**
+
+   * A **local minimum** is any bar whose Low is lower than its immediate neighbors (e.g. lower than the 2 bars on each side in a 5-bar window).
+   * A **support zone** is then formed by clustering those local minima that fall within a small price band (e.g. ±0.5% of each other).
+2. **Pros**
+
+   * **Filters out one-off spikes**—only true “dips” where price reversed in the next bar qualify.
+   * **Identifies zones** where multiple dips cluster, which often become stronger support levels.
+3. **Cons**
+
+   * Requires two steps—(a) detect minima, then (b) cluster them—so it’s a bit more code.
+   * You need to choose:
+
+     * The **neighborhood size** (how many bars on each side to compare)
+     * The **clustering tolerance** (how tight the price bands must be to count as the same zone)
+
+---
+
+### When to Use Which
+
+| Scenario                                | Rolling Min                       | Local Minima Clustering            |
+| --------------------------------------- | --------------------------------- | ---------------------------------- |
+| You need a “hard” stop level fast       | ✔️ quick & easy                   | ❌ more setup                       |
+| You want to avoid single-wick anomalies | ❌ may pick the single lowest wick | ✔️ ignores one-bar spikes          |
+| You value **zone** over exact price     | ❌ gives one precise price         | ✔️ gives a band of likely support  |
+| You may backtest dozens of symbols      | ✔️ lightning-fast in pure Pandas  | ❌ slightly more compute per symbol |
+
+---
+
+### In Practice
+
+1. **Rolling Min**:
+
+   ```python
+   support = df['Low'].shift(1).rolling(window=10).min()
+   stop = support - buffer
+   ```
+
+2. **Local Minima**:
+
+   * **Detect minima**: a bar *i* is a local min if
+
+     ```
+     Low[i] < Low[i-2], Low[i-1]  
+     AND  
+     Low[i] < Low[i+1], Low[i+2]
+     ```
+   * **Cluster** all those Low\[i] values into price bands (e.g. round to nearest ₹5 or ±0.5%).
+   * **Support zone** = the most recent cluster’s band.
+
+---
+
+Both methods are valid—**rolling min** is great for speed and simplicity, **local minima clustering** is stronger for noise-resistant, zone-based support levels. Choose based on how precise and robust you need your stop‐level construction to be.

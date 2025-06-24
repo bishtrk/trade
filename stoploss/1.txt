@@ -1,0 +1,189 @@
+hwo about:  Quick Checklist to Pick Your Stop Loss:
+Check the low of the breakout day—most commonly used.
+Look for nearest support zone on chart.
+Set your stop slightly below (not exactly at) that level.
+Adjust for stock’s volatility—avoid too tight stops.
+Re-evaluate after each new move, especially in high-volatility periods.
+
+
+That’s a great, concise framework. Here’s a polished “Quick-Stop Checklist” you can apply to TCS (or any other instrument):
+
+1. **Identify the Breakout Low/High**
+
+   * For a long, mark the **low of the breakout candle**; for a short, the **high of the breakdown candle**.
+   * This is often the “trigger” level that shifted supply/demand.
+
+2. **Locate the Nearest Support/Resistance Zone**
+
+   * Zoom out slightly and find the last cluster of swing lows (for longs) or swing highs (for shorts).
+   * Draw a horizontal band rather than a single line—this accounts for minor intraday wicks.
+
+3. **Add a Buffer Below/Above the Zone**
+
+   * Never place the stop exactly on the level.
+   * Use a small offset (e.g., 0.5–1% of price, or a few ticks) to avoid getting whipsawed by noise.
+
+4. **Adjust for Volatility**
+
+   * Check TCS’s recent **ATR** (say 14-day).
+   * Ensure your buffer is at least **1×ATR** away from your entry to give the trade breathing room.
+
+5. **Re-Evaluate Dynamically**
+
+   * After every significant swing or volatility expansion, **re-draw** your support/resistance bands.
+   * If price makes a higher low (for longs) or lower high (for shorts), consider **trailing** your stop to that new structure.
+
+6. **Mind Your Risk Budget**
+
+   * Calculate the distance from entry to your stop in ₹ and ensure it fits your **max‐loss** per trade (e.g. 1–2% of equity).
+   * If the structural stop is too far (risk > your limit), either pass on the trade or reduce position size.
+
+By following these steps—anchoring stops to chart structure, buffering for noise, and adapting with volatility—you’ll build a robust, repeatable stop-loss process.
+
+---
+Below is a self-contained script (`stop_losses_tcs.py`) that implements your “Quick‐Stop Checklist” on the TCS data:
+
+```python
+#!/usr/bin/env python3
+import pandas as pd
+import numpy as np
+
+def compute_atr(df, period=14):
+    """Compute the Average True Range (ATR)."""
+    high_low = df['High'] - df['Low']
+    high_prev_close = (df['High'] - df['Close'].shift(1)).abs()
+    low_prev_close  = (df['Low']  - df['Close'].shift(1)).abs()
+    true_range = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
+    return true_range.rolling(window=period).mean()
+
+def find_breakouts(df, lookback=20):
+    """
+    Identify breakout days: Close > rolling max High over the past `lookback` days.
+    Returns a boolean Series.
+    """
+    rolling_max = df['High'].shift(1).rolling(window=lookback).max()
+    return df['Close'] > rolling_max
+
+def compute_support(df, window=10):
+    """
+    Nearest support = rolling min Low over the past `window` days (excluding today).
+    """
+    return df['Low'].shift(1).rolling(window=window).min()
+
+def compute_stop_levels(df,
+                        breakout_lookback=20,
+                        support_window=10,
+                        buffer_pct=0.005,
+                        atr_period=14):
+    """
+    For each breakout day, compute:
+      - breakout_low   = Low of the breakout day
+      - support_zone   = prior swing-low (nearest support)
+      - buffer         = max(buffer_pct * Close, ATR)
+      - stop_price     = support_zone - buffer
+    """
+    df = df.copy()
+    # 1. ATR
+    df['ATR'] = compute_atr(df, period=atr_period)
+
+    # 2. Breakout signals
+    df['Breakout'] = find_breakouts(df, lookback=breakout_lookback)
+
+    # 3. Support zones
+    df['Support'] = compute_support(df, window=support_window)
+
+    # 4. Buffers (volatility + fixed %)
+    df['Buffer'] = df[['ATR', 'Close']].apply(
+        lambda x: max(x['ATR'], buffer_pct * x['Close']), axis=1
+    )
+
+    # 5. Stop price
+    df['StopPrice'] = df['Support'] - df['Buffer']
+
+    # 6. Only keep breakout days
+    return df.loc[df['Breakout'], ['Close','Low','Support','ATR','Buffer','StopPrice']]
+
+def main():
+    # --- Load & prepare data ---
+    df = pd.read_csv('scrip.csv', thousands=',')
+    df.columns = df.columns.str.strip()
+    df['Date'] = pd.to_datetime(df['Date'], format='%d-%b-%Y')
+    df.set_index('Date', inplace=True)
+    df.rename(columns={
+        'Open Price': 'Open',
+        'High Price': 'High',
+        'Low Price': 'Low',
+        'Close Price': 'Close'
+    }, inplace=True)
+
+    # --- Compute stop levels for each breakout ---
+    stops = compute_stop_levels(
+        df,
+        breakout_lookback=20,
+        support_window=10,
+        buffer_pct=0.005,
+        atr_period=14
+    )
+
+    # --- Display results ---
+    if stops.empty:
+        print("No breakout signals detected with the given parameters.")
+    else:
+        print("\nSuggested Stops on Breakout Days:\n")
+        print(stops.to_string(formatters={
+            'Close':      '{:.2f}'.format,
+            'Low':        '{:.2f}'.format,
+            'Support':    '{:.2f}'.format,
+            'ATR':        '{:.2f}'.format,
+            'Buffer':     '{:.2f}'.format,
+            'StopPrice':  '{:.2f}'.format
+        }))
+
+if __name__ == "__main__":
+    main()
+```
+
+### How it works
+
+1. **ATR Calculation**
+
+   * Uses True Range (max of three measures) and a 14-day rolling average.
+
+2. **Breakout Detection**
+
+   * Marks days where `Close` > highest `High` of the previous 20 days.
+
+3. **Support Zone**
+
+   * Takes the lowest `Low` over the prior 10 days.
+
+4. **Buffer**
+
+   * Chooses the larger of 0.5% of the Close price (you can tweak `buffer_pct`) and the current ATR.
+
+5. **Stop Price**
+
+   * Sets `StopPrice = Support – Buffer`.
+
+6. **Filtering**
+
+   * Outputs only the rows for detected breakout days, with columns:
+     `Close` (entry proxy), `Low` (breakout day low), `Support`, `ATR`, `Buffer`, and the final `StopPrice`.
+
+---
+
+#### Usage
+
+```bash
+pip install pandas numpy
+python stop_losses_tcs.py
+```
+
+You can adjust:
+
+* `breakout_lookback` → how many days to look back for your breakout high.
+* `support_window`     → how many days to scan for your support low.
+* `buffer_pct`         → your fixed % buffer (e.g. 0.005 = 0.5%).
+* `atr_period`         → ATR look-back.
+
+This will give you a clear, reproducible stop-loss level for each breakout per your checklist.

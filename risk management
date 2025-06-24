@@ -1,0 +1,87 @@
+Here’s how you move from “bet‐the‐farm” all‐in bets to a more professional, risk-controlled approach:
+
+---
+
+## 1. Fixed-Fraction Position Sizing
+
+* **What it is**: You decide up-front to risk a fixed percentage of your current equity on each trade (e.g. 2%).
+* **How it works**:
+
+  1. Determine your stop-loss distance in price points (or %).
+  2. Calculate position size = (Equity × Risk %) / (stop distance).
+* **Why it matters**: Keeps your drawdowns predictable—a string of losers will only ever cost you that fixed percentage per trade.
+
+---
+
+## 2. Kelly Criterion
+
+* **What it is**: A mathematically optimal fraction of your bankroll to risk, based on your edge and win/loss odds.
+* **Core idea**:
+
+  $$
+    f^* = W - \frac{1-W}{R}
+  $$
+
+  where *W* = probability of a winning trade, *R* = average win ÷ average loss.
+* **Pros & cons**:
+
+  * **Pro**: Maximizes long-run growth.
+  * **Con**: Very aggressive—can lead to large drawdowns if your edge estimates are off.
+* **Typical use**: Traders often use a “fractional Kelly” (e.g. ¼ Kelly) to damp volatility.
+
+---
+
+## 3. ATR-Based Stops
+
+* **What it is**: Use the Average True Range (ATR) to size your stop-loss dynamically to current volatility.
+* **How it works**:
+
+  * Compute ATR over *N* periods (e.g. 14-day).
+  * Place your stop *k*×ATR away from your entry (e.g. 1.5 ATR).
+* **Why**: In calm markets your stop is tighter; in choppier markets it widens to avoid getting whipsawed.
+
+---
+
+## 4. Stop-Loss & Take-Profit Orders
+
+* **Stop-Loss**: An order to exit automatically if the market moves against you by a pre-defined amount.
+* **Take-Profit**: An order to exit once you’ve achieved a target gain.
+* **Key points**:
+
+  * Define your risk-reward ratio up-front (e.g. 1:2 or 1:3).
+  * Always place your stop at the same time as your entry to avoid emotional “stop-moving.”
+  * Consider trailing stops (locking in profits as the trend progresses).
+
+---
+
+## 5. Portfolio Diversification
+
+* **What it is**: Splitting capital across multiple, ideally uncorrelated, instruments.
+* **Benefits**:
+
+  * Reduces the impact of a single bad signal.
+  * Smooths out the equity curve.
+* **Implementation tips**:
+
+  * Cap maximum allocation per symbol or sector (e.g. no more than 25% in one stock).
+  * Consider correlations: pick instruments that don’t always move together.
+
+---
+
+## Milestone: 2%-of-Equity Risk Rule
+
+1. **Define**: You will never risk more than 2% of your current account on any single trade.
+2. **Procedure**:
+
+   * On each buy signal, compute your stop price (e.g. entry – 1.5 ATR).
+   * Calculate risk per share = entry price – stop price.
+   * Position size = (Equity × 0.02) / (risk per share).
+3. **Backtest impact**:
+
+   * Track how your position sizes shrink on big drawdowns and grow on winning streaks.
+   * Observe your max drawdown vs. “all-in” backtest—should be substantially lower.
+4. **Next step**: Add this sizing logic into your backtest loop and compare equity curves & drawdowns with and without the 2% rule.
+
+---
+
+By layering fixed-fraction sizing, ATR-based stops, and sensible portfolio limits, you turn your SMA crossover from a blunt instrument into a disciplined, scalable strategy.
