@@ -1,87 +1,75 @@
-Here’s the script—save it as `breakout_after_consol.py` next to `scrip.csv`, then install pandas and run:
+Here’s a plain-English walkthrough of what this script does, step by step:
 
-```bash
-pip install pandas
-python breakout_after_consol.py --price-lookback 20 --cons-window 10 --long-window 50 --percentile 0.3
-```
+---
 
-```python
-#!/usr/bin/env python3
-import argparse
-import pandas as pd
+## 1. Load & clean your data
 
-def load_data(path):
-    df = pd.read_csv(path, thousands=',')
-    df.columns = df.columns.str.strip()
-    df['Date'] = pd.to_datetime(df['Date'], format='%d-%b-%Y')
-    df.set_index('Date', inplace=True)
-    df.rename(columns={
-        'High Price':  'High',
-        'Low Price':   'Low',
-        'Close Price': 'Close'
-    }, inplace=True)
-    return df
+* **`load_data`** reads your CSV, parses the “Date” column into a proper DateTime index, and renames the price columns to simple names (`High`, `Low`, `Close`).
 
-def detect_resistance_breakouts(df, lookback):
-    df['Resistance'] = (
-        df['High']
-          .shift(1)
-          .rolling(window=lookback, min_periods=1)
-          .max()
-    )
-    df['Price_Breakout'] = df['Close'] > df['Resistance']
-    return df
+---
 
-def detect_consolidation(df, cons_window, long_window, percentile):
-    # 1. Compute daily range
-    df['Range'] = df['High'] - df['Low']
-    # 2. Avg range over consolidation window (lagged by 1)
-    df['Avg_Range'] = (
-        df['Range']
-          .shift(1)
-          .rolling(window=cons_window, min_periods=1)
-          .mean()
-    )
-    # 3. Squeeze threshold: percentile of avg_range over long window
-    df['Cons_Threshold'] = (
-        df['Avg_Range']
-          .rolling(window=long_window, min_periods=1)
-          .quantile(percentile)
-          .shift(1)
-    )
-    # 4. Consolidation flag
-    df['Consolidating'] = df['Avg_Range'] < df['Cons_Threshold']
-    return df
+## 2. Find your resistance breakout
 
-def main():
-    p = argparse.ArgumentParser(description="Breakout after consolidation filter")
-    p.add_argument('--csv',            default='scrip.csv', help="Path to scrip.csv")
-    p.add_argument('--price-lookback', type=int, default=20, help="Resistance lookback days")
-    p.add_argument('--cons-window',    type=int, default=10, help="Consolidation window days")
-    p.add_argument('--long-window',    type=int, default=50, help="Long window for threshold")
-    p.add_argument('--percentile',     type=float, default=0.3, help="Percentile (0–1) for threshold")
-    args = p.parse_args()
+* **Resistance**: for each day, look back *N* days (e.g. 20), take the highest **High** in that window **excluding today**, and call that your “Resistance” level.
+* **Price\_Breakout**: flag any day where **Close > Resistance**.
 
-    df = load_data(args.csv)
-    df = detect_resistance_breakouts(df, args.price_lookback)
-    df = detect_consolidation(df, args.cons_window, args.long_window, args.percentile)
+  ```python
+  Resistance_t = max(High_{t-1}, High_{t-2}, …, High_{t-N})
+  Price_Breakout_t = (Close_t > Resistance_t)
+  ```
 
-    # breakout only after consolidation
-    df['Breakout_Consol'] = df['Price_Breakout'] & df['Consolidating']
-    bo = df[df['Breakout_Consol']]
+---
 
-    if bo.empty:
-        print("No breakouts after consolidation detected.")
-    else:
-        pd.set_option('display.float_format', '{:.2f}'.format)
-        print("Breakouts After Consolidation:\n")
-        print(bo[['Close','Resistance','Avg_Range','Cons_Threshold']])
+## 3. Detect periods of “squeeze” (consolidation)
 
-if __name__ == '__main__':
-    main()
-```
+* **Daily Range** = High – Low.
+* **Avg\_Range** = the average of yesterday’s ranges over a short window (e.g. 10 days).
+* **Cons\_Threshold** = the 30th-percentile of those average ranges over a longer window (e.g. 50 days).
+* **Consolidating** = when your recent Avg\_Range is below that historical threshold—i.e., price action is unusually tight (“squeezed”).
 
-**How it works:**
+  ```python
+  Avg_Range_t  = mean(Range_{t-1} … Range_{t-10})
+  Threshold_t  = 30% quantile of Avg_Range_{t-1} … Avg_Range_{t-50}
+  Consolidating_t = (Avg_Range_t < Threshold_t)
+  ```
+
+---
+
+## 4. Combine into “breakout after consolidation”
+
+* **Breakout\_Consol** = `Price_Breakout` **AND** `Consolidating`.
+* You’ll only mark signals on days where price breaks its recent highs **while** it has been in a tight consolidation.
+
+---
+
+## 5. Print your signals
+
+* Any days that satisfy both conditions get printed as a little table (`Close`, `Resistance`, `Avg_Range`, `Cons_Threshold`).
+
+---
+
+## 6. Plot it all together
+
+* **Price** (`Close`) as a solid line, with the **Resistance** as a dashed line.
+* **Shaded grey zones** wherever you’re in “consolidation.”
+* **Green triangles** on the exact days that fired your “breakout after consolidation” signal.
+* **Volume bars** on a second y-axis:
+
+  * All days in light alpha
+  * Signal days overlaid in solid color
+
+---
+
+### Why each piece matters
+
+* **Resistance breakout** spots fresh momentum, when price finally exceeds its recent ceiling.
+* **Consolidation filter** avoids false breakouts by waiting for a tight range—true thrust often follows a squeeze.
+* **Volume overlay** gives context: higher volume on your signal days tends to make them more reliable.
+
+Taken together, this simple screener can help you spot potentially actionable momentum setups where price “coils” (consolidates) and then “springs” (breaks out) with real conviction.
+
+
+---
 
 1. **Resistance**: Highest High over the last `price_lookback` days, excluding today.
 2. **Avg\_Range**: The mean daily range (`High–Low`) over the prior `cons_window` days—shifted to avoid lookahead.

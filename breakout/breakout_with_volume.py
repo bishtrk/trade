@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def load_data(path):
     df = pd.read_csv(path, thousands=',')
@@ -15,37 +16,56 @@ def load_data(path):
     return df
 
 def detect_breakouts(df, price_lookback):
-    # Prior resistance = max High over last price_lookback days (shifted)
     df['Resistance'] = (
         df['High']
           .shift(1)
           .rolling(window=price_lookback, min_periods=1)
           .max()
     )
-    # Price breakout if Close > that resistance
     df['Price_Breakout'] = df['Close'] > df['Resistance']
     return df
 
 def apply_volume_filter(df, vol_lookback, vol_multiplier):
-    # Lagged average volume
     df['Avg_Volume'] = (
         df['Volume']
           .shift(1)
           .rolling(window=vol_lookback, min_periods=1)
           .mean()
     )
-    # Volume confirmation: today's volume > multiplier × average
     df['Volume_Confirm'] = df['Volume'] > vol_multiplier * df['Avg_Volume']
-    # Only keep breakouts that also have volume confirmation
     df['Breakout_Valid'] = df['Price_Breakout'] & df['Volume_Confirm']
     return df
 
+def plot_breakouts(df, valid):
+    # Single chart with price + volume on twin y-axes
+    fig, ax_price = plt.subplots(figsize=(12, 6))
+
+    # Price lines and breakout markers
+    ax_price.plot(df.index, df['Close'], label='Close')
+    ax_price.plot(df.index, df['Resistance'], label='Resistance')
+    ax_price.scatter(valid.index, valid['Close'], marker='o', label='Valid Breakout', zorder=5)
+    ax_price.set_ylabel('Price')
+    ax_price.legend(loc='upper left')
+
+    # Volume bars on a second y-axis
+    ax_vol = ax_price.twinx()
+    # all volume bars (first default color)
+    ax_vol.bar(df.index, df['Volume'], width=1, align='center')
+    # highlight valid breakout volumes (next default color)
+    ax_vol.bar(valid.index, valid['Volume'], width=1, align='center')
+    ax_vol.set_ylabel('Volume')
+
+    ax_price.set_title('Price & Volume – Breakouts Highlighted')
+    ax_price.set_xlabel('Date')
+    plt.tight_layout()
+    plt.show()
+
 def main():
-    p = argparse.ArgumentParser(description="Detect resistance breakouts with volume confirmation")
-    p.add_argument('--csv',            default='scrip.csv',     help="Path to scrip.csv")
-    p.add_argument('--lookback',       type=int, default=20,   help="Days to define resistance (price lookback)")
-    p.add_argument('--vol-lookback',   type=int, default=20,   help="Days to compute average volume")
-    p.add_argument('--vol-multiplier', type=float, default=1.5, help="Volume multiple for confirmation")
+    p = argparse.ArgumentParser(description="Detect and plot breakouts with volume confirmation")
+    p.add_argument('--csv',            default='scrip.csv',     help="Path to CSV file")
+    p.add_argument('--lookback',       type=int, default=20,    help="Price lookback days")
+    p.add_argument('--vol-lookback',   type=int, default=20,    help="Volume lookback days")
+    p.add_argument('--vol-multiplier', type=float, default=1.5,  help="Volume multiplier")
     args = p.parse_args()
 
     df = load_data(args.csv)
@@ -57,7 +77,7 @@ def main():
         print("No valid breakouts with volume confirmation.")
         return
 
-    # Display the valid breakout days
+    # Console table only
     print(f"Breakouts (lookback={args.lookback}d) with Vol > {args.vol_multiplier}×{args.vol_lookback}d Avg:\n")
     print(valid[['Close','Resistance','Volume','Avg_Volume']].to_string(
         formatters={
@@ -68,12 +88,7 @@ def main():
         }
     ))
 
+    plot_breakouts(df, valid)
+
 if __name__ == '__main__':
     main()
-
-#python breakout_with_volume.py --lookback 20 --vol-lookback 20 --vol-multiplier 1.5
-    
-# This code detects breakouts above prior resistance levels in stock data, with volume confirmation.
-# It loads data from a CSV file, computes resistance levels based on historical highs,
-# and checks for breakouts where the closing price exceeds this resistance.
-# It also applies a volume filter to ensure that the breakout is supported by significant trading volume.

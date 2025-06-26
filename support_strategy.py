@@ -43,7 +43,7 @@ if __name__ == '__main__':
     cerebro = bt.Cerebro()
     
     # Load your specific data format
-    data = pd.read_csv('your_data.csv', parse_dates=['Date  '], index_col='Date  ')
+    data = pd.read_csv('scrip.csv', parse_dates=['Date  '], index_col='Date  ')
     
     # Clean and convert numeric columns (handling commas in Indian number format)
     numeric_cols = ['Open Price  ', 'High Price  ', 'Low Price  ', 'Close Price  ', 'Total Traded Quantity  ']

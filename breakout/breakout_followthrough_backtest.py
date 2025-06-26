@@ -1,112 +1,148 @@
 #!/usr/bin/env python3
 import argparse
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
 
 def load_data(path):
-    """Load scrip.csv, parse dates, strip commas, rename OHLC columns."""
+    """Load CSV, parse dates, strip commas, rename and convert columns."""
     df = pd.read_csv(path, thousands=',')
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Date'], format='%d-%b-%Y')
     df.set_index('Date', inplace=True)
     df.rename(columns={
-        'High Price':  'High',
-        'Low Price':   'Low',
-        'Close Price': 'Close'
+        'High Price':            'High',
+        'Low Price':             'Low',
+        'Close Price':           'Close',
+        'Total Traded Quantity': 'Volume'
     }, inplace=True)
+    # ensure numeric types
+    for col in ['High','Low','Close','Volume']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    # drop duplicate dates if any
+    df = df[~df.index.duplicated(keep='first')]
     return df
 
-def detect_price_breakouts(df, price_lookback):
-    """Flag days where Close > max(High) of prior price_lookback days."""
+def detect_price_breakouts(df, lookback):
+    """Compute resistance line, detect price breakouts, and avg volume."""
     df = df.copy()
+    # resistance = max high over prior lookback days
     df['Resistance'] = (
         df['High']
           .shift(1)
-          .rolling(window=price_lookback, min_periods=1)
+          .rolling(window=lookback, min_periods=1)
           .max()
     )
+    # raw breakout flag
     df['Breakout'] = df['Close'] > df['Resistance']
+    # lagged average volume over same lookback
+    df['Avg_Volume'] = (
+        df['Volume']
+          .shift(1)
+          .rolling(window=lookback, min_periods=1)
+          .mean()
+    )
     return df
 
-def check_follow_through(df, idx, follow_days, close_near_pct):
-    """
-    Returns True if on breakout day idx:
-      1) Close ≥ Low + close_near_pct*(High−Low)
-      2) In the next follow_days, all Closes remain > Resistance level
-    """
-    res = df.at[idx, 'Resistance']
-    high, low, close = df.at[idx, 'High'], df.at[idx, 'Low'], df.at[idx, 'Close']
-    # 1) closed in the top (1 − close_near_pct) portion of that bar
-    if close < low + close_near_pct * (high - low):
+def check_follow_through(df, dt, follow_days, pct):
+    """Check candle-top close and no fallback over follow_days."""
+    res   = float(df.at[dt, 'Resistance'])
+    high  = float(df.at[dt, 'High'])
+    low   = float(df.at[dt, 'Low'])
+    close = float(df.at[dt, 'Close'])
+    # 1) did it close in the upper pct of its own bar?
+    if close < low + pct * (high - low):
         return False
-    # 2) no fallback in the next follow_days bars
-    window = df.loc[idx:].iloc[1:follow_days+1]
-    if window.empty:
-        return False
-    return (window['Close'] > res).all()
+    # 2) no fallback below resistance in next follow_days
+    window = df.loc[dt:].iloc[1:follow_days+1]
+    return (not window.empty) and (window['Close'] > res).all()
 
-def backtest_sustain(df, breakout_dates, backtest_days):
+def backtest(df, bo_dates, follow_days, pct, back_days):
     """
-    Returns (total, follow_through_count, sustain_count):
-    - total breakouts
-    - how many had positive follow-through
-    - how many were still above breakout Close after backtest_days
+    Returns (total_breakouts, follow_through_dates, sustain_dates).
     """
-    total = 0
-    ft_ok = 0
-    sustain = 0
+    ft_dates = []
+    sustain_dates = []
+    for dt in bo_dates:
+        if check_follow_through(df, dt, follow_days, pct):
+            ft_dates.append(dt)
+        # check N-day later sustain
+        b_close = float(df.at[dt, 'Close'])
+        future = df.loc[dt:].iloc[back_days:back_days+1]
+        if not future.empty and float(future['Close'].iat[0]) > b_close:
+            sustain_dates.append(dt)
+    return len(bo_dates), ft_dates, sustain_dates
 
-    for idx in breakout_dates:
-        total += 1
-        res = df.at[idx, 'Resistance']
-        b_close = df.at[idx, 'Close']
-
-        if check_follow_through(df, idx, args.follow_days, args.close_near_pct):
-            ft_ok += 1
-
-        # check N-day later close
-        future = df.loc[idx:].iloc[backtest_days:backtest_days+1]
-        if not future.empty and future['Close'].iat[0] > b_close:
-            sustain += 1
-
-    return total, ft_ok, sustain
+def plot_price_volume(df, bo_dates, ft_dates):
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    # price & resistance
+    ax1.plot(df.index, df['Close'], label='Close', lw=1.2)
+    ax1.plot(df.index, df['Resistance'], '--', color='orange', label='Resistance')
+    # markers
+    ax1.scatter(bo_dates, [df.at[d,'Close'] for d in bo_dates],
+                marker='o', color='red', label='Breakout', zorder=5)
+    ax1.scatter(ft_dates, [df.at[d,'Close'] for d in ft_dates],
+                marker='^', color='green', label='Follow-through', zorder=6)
+    ax1.set_ylabel('Price')
+    ax1.legend(loc='upper left')
+    # volume bars
+    ax2 = ax1.twinx()
+    ax2.bar(df.index, df['Volume'], width=1, alpha=0.3)
+    ax2.set_ylabel('Volume')
+    plt.title('Price & Volume with Breakouts and Follow-through')
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser(description="Breakout + Follow-through + Backtest on TCS")
-    p.add_argument('--csv',            default='scrip.csv',    help="Path to scrip.csv")
-    p.add_argument('--price-lookback', type=int, default=20, help="Days for resistance lookback")
-    p.add_argument('--follow-days',    type=int, default=3,  help="Days to check no-fallback after breakout")
-    p.add_argument('--close-near-pct', type=float, default=0.6,
-                   help="Close must be in top (1−pct) of candle (e.g. 0.6 = top 40%%)")
-    p.add_argument('--backtest-days',  type=int, default=10,
-                   help="Days forward to test if Close > breakout Close")
+    p = argparse.ArgumentParser(description="Breakout + Follow-through + Table + Chart")
+    p.add_argument('--csv',         default='scrip.csv', help="Path to CSV")
+    p.add_argument('--lookback',    type=int,   default=20,   help="Resistance/vol lookback days")
+    p.add_argument('--follow-days', type=int,   default=3,    help="Days to check no-fallback")
+    p.add_argument('--pct',         type=float, default=0.6,  help="Close must be in top pct of candle")
+    p.add_argument('--back-days',   type=int,   default=10,   help="Days forward to test sustain")
     args = p.parse_args()
 
-    # 1. Load & detect breakouts
+    # load, detect breakouts & compute avg volume
     df = load_data(args.csv)
-    df = detect_price_breakouts(df, args.price_lookback)
-    bo_dates = df.index[df['Breakout']]
-
-    if bo_dates.empty:
+    df = detect_price_breakouts(df, args.lookback)
+    bo_dates = df.index[df['Breakout']].tolist()
+    if not bo_dates:
         print("No breakouts detected.")
         exit()
 
-    # 2. Compute metrics
-    total, ft_ok, sustain = backtest_sustain(
-        df, bo_dates, args.backtest_days
+    # run backtest
+    total, ft_dates, sustain_dates = backtest(
+        df, bo_dates, args.follow_days, args.pct, args.back_days
     )
 
-    # 3. Print results
-    print(f"Total breakouts found: {total}")
-    print(f"→ Positive follow-through ({args.follow_days}d, top {int((1-args.close_near_pct)*100)}%): {ft_ok}")
-    print(f"→ Sustained after {args.backtest_days} days: {sustain}")
-    print(f"Follow-through rate: {ft_ok/total*100:.1f}%")
-    print(f"Sustain rate:      {sustain/total*100:.1f}%")
+    # summary
+    print(f"Total breakouts:       {total}")
+    print(f"Follow-through count:  {len(ft_dates)}")
+    print(f"Sustained count:       {len(sustain_dates)}")
+    print(f"Follow-through rate:   {len(ft_dates)/total*100:.1f}%")
+    print(f"Sustain rate:          {len(sustain_dates)/total*100:.1f}%\n")
 
-pip install pandas numpy
-python breakout_followthrough_backtest.py \
-  --csv scrip.csv \
-  --price-lookback 20 \
-  --follow-days 3 \
-  --close-near-pct 0.6 \
-  --backtest-days 10
+    # detailed table
+    rows = []
+    for dt in bo_dates:
+        vol     = df.at[dt, 'Volume']
+        avg_vol = df.at[dt, 'Avg_Volume']
+        rows.append({
+            'Date':       dt.strftime('%Y-%m-%d'),
+            'Close':      df.at[dt, 'Close'],
+            'Resistance': df.at[dt, 'Resistance'],
+            'Volume':     vol,
+            'Avg_Volume': avg_vol,
+            'HighVol':    vol > avg_vol if avg_vol>0 else False,
+            'FollowThru': dt in ft_dates,
+            f'Sustain@{args.back_days}d': dt in sustain_dates
+        })
+    table = pd.DataFrame(rows).set_index('Date')
+    print(table.to_string(
+        float_format='{:,.2f}'.format,
+        columns=['Close','Resistance','Volume','Avg_Volume','HighVol','FollowThru',f'Sustain@{args.back_days}d']
+    ))
+
+    # plot chart
+    plot_price_volume(df, bo_dates, ft_dates)
+
+#python breakout_followthrough_backtest.py --csv scrip.csv  --lookback 20 --follow-days 3 --pct 0.6 --back-days 10

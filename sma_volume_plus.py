@@ -2,21 +2,22 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from mplfinance.original_flavor import candlestick_ohlc
 
 def compute_rsi(series, period=14):
     """Compute RSI given a price series."""
     delta = series.diff()
     gain  = delta.clip(lower=0)
     loss  = -delta.clip(upper=0)
-    # first average
+    # first simple average
     avg_gain = gain.rolling(window=period, min_periods=period).mean()
     avg_loss = loss.rolling(window=period, min_periods=period).mean()
-    # smooth with Wilder’s
+    # then Wilder’s smoothing
     avg_gain = avg_gain.shift(1).ewm(alpha=1/period, adjust=False).mean()
     avg_loss = avg_loss.shift(1).ewm(alpha=1/period, adjust=False).mean()
     rs  = avg_gain / avg_loss
-    rsi = 100 - (100/(1+rs))
-    return rsi
+    return 100 - (100 / (1 + rs))
 
 def main():
     # 1. Load CSV, handle thousands separators
@@ -38,13 +39,13 @@ def main():
     df['SMA50'] = df['Close'].rolling(window=50, min_periods=1).mean()
 
     # 5. Compute RSI & MACD
-    df['RSI'] = compute_rsi(df['Close'], period=14)
-    df['EMA12'] = df['Close'].ewm(span=12, adjust=False).mean()
-    df['EMA26'] = df['Close'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = df['EMA12'] - df['EMA26']
-    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    df['RSI']        = compute_rsi(df['Close'], period=14)
+    df['EMA12']      = df['Close'].ewm(span=12, adjust=False).mean()
+    df['EMA26']      = df['Close'].ewm(span=26, adjust=False).mean()
+    df['MACD']       = df['EMA12'] - df['EMA26']
+    df['MACD_signal']= df['MACD'].ewm(span=9, adjust=False).mean()
 
-    # 6. Identify local swing-lows (simple 1-day lookback/look-ahead)
+    # 6. Identify local swing-lows
     df['SwingLow'] = (
         (df['Close'].shift(1) > df['Close']) &
         (df['Close'].shift(-1) > df['Close'])
@@ -67,19 +68,48 @@ def main():
         gridspec_kw={'height_ratios': [3,1,1]}
     )
 
-    # --- Top panel: Price, SMAs, swing-lows, volume bars ---
-    ax0.plot(df.index, df['Close'], label='Close Price', lw=1)
-    ax0.plot(df.index, df['SMA20'], label='20-day SMA',  lw=1)
-    ax0.plot(df.index, df['SMA50'], label='50-day SMA',  lw=1)
+    # --- Top panel: Candlestick + SMAs + swing-lows + volume ---
+    # Prepare OHLC quotations
+    quotes = df[['Open Price', 'High Price', 'Low Price', 'Close']].copy()
+    quotes['Date_Num'] = mdates.date2num(quotes.index.to_pydatetime())
+    ohlc = quotes[['Date_Num','Open Price','High Price','Low Price','Close']].values
+
+    # Plot candlesticks
+    candlestick_ohlc(
+        ax0, ohlc,
+        width=0.6,
+        colorup='green',
+        colordown='red',
+        alpha=0.8
+    )
+
+    # Overlay SMAs
+    ax0.plot(df.index, df['SMA20'], label='20-day SMA', lw=1, color='orange')
+    ax0.plot(df.index, df['SMA50'], label='50-day SMA', lw=1, color='green')
+
     # Mark swing-lows
     swings = df[df['SwingLow']]
-    ax0.scatter(swings.index, swings['Close'],
-                marker='v', color='purple', s=100, label='Swing Low')
-    # Volume on twin-axis, coloring heavy down-vol red
+    ax0.scatter(
+        swings.index,
+        swings['Close'],
+        marker='v',
+        color='purple',
+        s=100,
+        label='Swing Low'
+    )
+
+    # Volume on twin axis, coloring heavy down-vol red
     ax0_vol = ax0.twinx()
     colors = np.where(df['HeavyDownVol'], 'red', 'lightblue')
-    ax0_vol.bar(df.index, df['Volume'],
-                width=1.0, alpha=0.4, color=colors, label='Volume')
+    ax0_vol.bar(
+        df.index,
+        df['Volume'],
+        width=1.0,
+        alpha=0.4,
+        color=colors,
+        label='Volume'
+    )
+
     ax0.set_ylabel('Price (₹)')
     ax0_vol.set_ylabel('Volume')
     ax0.legend(loc='upper left')
@@ -105,7 +135,6 @@ def main():
     ax2.set_xlabel('Date')
     plt.tight_layout()
     plt.show()
-
 
 if __name__ == "__main__":
     main()

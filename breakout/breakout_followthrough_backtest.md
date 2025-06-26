@@ -1,3 +1,61 @@
+This little script is essentially a **proof-of-concept momentum screener** and backtester rolled into one. In practical terms, you can think of it as a template for:
+
+1. **Signal Generation**
+
+   * It scans your historical price data and flags every time the close “clears” its recent *N*-day high (the basic breakout).
+   * It then filters only those breakouts that close in the upper portion of their own bar (your “follow-through”) and checks whether price stays above the breakout level after *M* days.
+
+2. **Quick Backtest & Metrics**
+
+   * You immediately get a sense of how often those signals actually showed follow-through (did the candle close strongly?) and how many of them still finished higher after *M* more days.
+   * All the metrics and a detailed table print out in your console, so you can eyeball which dates “worked” and which didn’t.
+
+3. **Visualization**
+
+   * Finally it plots price + volume with your breakout and follow-through markers, so you can visually inspect the setups.
+
+---
+
+## Why you’re seeing \~50/50 results
+
+A simple “break above the last 20-day high” strategy with only a candle-top check is **extremely basic**—it captures **any** churn that just happens to poke above a rolling high. In most markets, roughly half of these pokes will fail to develop further momentum, and half will succeed, so seeing \~50% follow-through or sustain is actually pretty typical.
+
+---
+
+## When this becomes useful
+
+* **Screening, not trading**: Use it to **short-list** candidates, then layer on more filters (e.g. relative strength, sector momentum, fundamental screens).
+* **Parameter exploration**: Try different lookbacks (10, 30, 60 days), different “follow-through” thresholds (e.g. close in top 20% of range rather than 40%), or require a minimum % breakout above the prior high (e.g. 1–2%).
+* **Combine signals**: Pair your breakouts with trend filters (e.g. price > 200-day MA), volatility filters (e.g. ATR squeeze), or volume spikes (e.g. today’s volume > 2× recent average).
+* **Risk & money management**: Add stop-loss rules, position sizing, and profit targets in your backtest to see if risk-adjusted returns become attractive.
+
+---
+
+### Next steps
+
+1. **Tighten your entry**
+
+   * Require a bigger % move beyond the high.
+   * Only trade breakouts that occur when overall market or sector is trending up.
+
+2. **Improve your filter**
+
+   * Use a moving-average trend filter (e.g. only breakouts above the 50- or 200-day MA).
+   * Add an RSI or MACD confirmation so you’re not buying overbought breakouts.
+
+3. **Expand your universe**
+
+   * Run the same script across hundreds of stocks or ETFs and look for clusters of high follow-through rates.
+   * Compare different lookback settings side-by-side.
+
+4. **Rigorous backtest**
+
+   * Integrate it into a full backtesting engine (like Backtrader) with entry/exit rules and P/L tracking—right now you’re only measuring raw signal success, not net returns after slippage, commissions, and drawdowns.
+
+By itself, the simple “20-day high” check isn’t a silver bullet. But as a **building block**—something you can tweak, combine, and rigorously backtest—it’s a great way to explore momentum patterns and learn how signal filters actually affect performance.
+
+
+-------
 analyse follow through after breakout: Great! I’ll do three things in this answer:
 
 1. **Explain “Follow-through”** with simple examples.
