@@ -1,3 +1,45 @@
+yes, the ideas is i want to screen stocks which are up certain percentage suddenly. usually there is a reason behind such jumps like a news or something. and i want to capture such breakstocks because they might just start their upwaard journey. at same time i want to reduce risk of false breakouts so that i am not stuck at a high. one way is to see if follow through buying is happening or not. this is why i created this script. but not whether this was correctly captured in the script. Got it ?
+
+
+---
+
+Exactly—your goal is to find stocks that:
+
+1. **Jump a minimum % above their recent high** (e.g. 5–10%),
+2. **Do it on strong volume**, and
+3. **Show follow-through buying** over the next few days so you’re not just buying a one-day spike.
+
+Your script now captures that by:
+
+* Using `--break-pct` to require `Close/Resistance – 1 ≥ break_pct` (so only “zoom” breakouts make the list).
+* Computing `Avg_Volume` and flagging true volume spikes (you can even filter out any breakout where `HighVol==False`).
+* Checking that the candle closed in its top-pct (your `--pct`) of the bar and that the next N days all stayed above the breakout level.
+
+---
+
+### A few quick tweaks to tighten it further
+
+* **Enforce the volume surge** at signal time:
+
+  ```python
+  df['Breakout'] = (df['Pct_Above_Res'] >= min_break_pct) \
+                   & (df['Volume'] > df['Avg_Volume'] * vol_multiplier)
+  ```
+
+* **Capture gap-ups at the open** (news breakouts often gap open):
+
+  ```python
+  df['GapPct'] = df['Open'] / df['Close'].shift(1) - 1
+  df['Breakout'] &= df['GapPct'] >= min_gap_pct
+  ```
+
+* **Validate on a known example**: pick a stock/date where you know there was news, run the script, and manually verify the date appears in your table.
+
+With those in place, you’ll be screening only for **big, high-volume jumps** that also **hold above their new range**, which is exactly what you described. Let me know if you want code snippets for any of those tweaks!
+
+
+---
+
 This little script is essentially a **proof-of-concept momentum screener** and backtester rolled into one. In practical terms, you can think of it as a template for:
 
 1. **Signal Generation**

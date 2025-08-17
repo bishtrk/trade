@@ -1,3 +1,8 @@
+yes, the ideas is i want to screen stocks which are up certain percentage suddenly. usually there is a reason behind such jumps like a news or something. and i want to capture such breakstocks because they might just start their upwaard journey. at same time i want to reduce risk of false breakouts so that i am not stuck at a high. one way is to see if follow through buying is happening or not. this is why i created this script. but not whether this was correctly captured in the script. Got it ?
+
+
+----
+
 analyse, plot them on the chart also along with price, volume and SMA. **Yes, you can absolutely automate the process of checking technical indicators like RSI, Stochastics, or MACD** to help decide whether a breakout or follow-through day is “overbought” (and therefore risky to chase).
 
 Here’s how you can do it step by step in Python using the popular library **TA-Lib** or **Pandas TA** (if you can’t install TA-Lib).

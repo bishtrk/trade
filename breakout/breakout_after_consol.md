@@ -1,4 +1,25 @@
-Here’s a plain-English walkthrough of what this script does, step by step:
+Consolidation + Breakout
+
+Measure daily high–low ranges and compute a short-term average.
+
+Define a “squeeze” when that average falls below the percentile of its longer-term history.
+
+Compute a rolling resistance line (highest high over price-lookback days).
+
+Flag only those closes that both (a) break that resistance and (b) occur during a low-volatility squeeze.
+
+Pros: Filters out false breakouts, only shows moves emerging from real range-compressions.
+
+Cons: More parameters to tune and slightly slower to run.
+
+---
+Close > rolling high over last N days and that day falls inside a measured low-volatility squeeze (range-based)	
+
+A more refined “spring out of a true coil” filter. Use when you want to avoid random spikes and only trade after a genuine volatility compression. Great for medium-frequency swing trades.	
+
+A stock whose daily ranges have been in the bottom 30% of their 50-day history, then closes above its 20-day high.
+
+
 
 ---
 
